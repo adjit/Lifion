@@ -12,6 +12,12 @@ public class CheckSubs
          *  subscribersAR will be a dictionary of subscribers using the Accounts_Receivable_ID
          *  as the key for easy AR access.
          *  
+         *  Alternatively, you could pass just plain list of subscribers to the function and
+         *  put the subscribers into a dictionary with the Accounts_Receivable_ID, but that
+         *  would be better off handled by some main process that would create necessary
+         *  dictionaries. Let's say multiple functions would use the subscribersAR - don't
+         *  want to go through the process of setting up a dictionary multiple times.
+         *  
          *  Since the Database will handle account ageing and updating account balances
          *  and amounts due under 30 days and amounts due over 30 days, finding which
          *  subscribers are delinquent is a trivial process of checking which accounts
@@ -29,16 +35,37 @@ public class CheckSubs
 
         DateTime now = DateTime.Now.Date;
 
+        /*  Dictionary using the Accounts_Receivable_ID as it's Key and has a list of
+         *  delinquent invoices as its Value.
+         */ 
         Dictionary<int, List<Invoice>> delinquentSubs = new Dictionary<int, List<Invoice>>();
 
+        /*  Loop through all invoices that are passed
+         */
         for (int i = 0; i < invoices.Count; i++)
         {
+            /*  If the invoice is younger than 60 days move on, subscriber can
+             *  still pay. The value doesn't have to be 60 days. You could add
+             *  a variable that would used to check. Just using 60 for this
+             *  example
+             */
             if (now.Subtract(invoices[i].invoiceDate).Days < 60) continue;
+
+            /*  Otherwise, invoice is way over-due and the customer needs to
+             *  be informed their account will be cancelled. But, the subscriber
+             *  may have multiple open invoices, so just put delinquent invoices
+             *  into the delinquentSubs dictionary using the Accounts_Receivable_ID
+             *  as the key
+             */
             else
             {
                 List<Invoice> delinquentInvoices;
                 int key = invoices[i].ARID;
 
+                /*  Try to get the key value in delinquentSubs. If that value doesn't
+                 *  exist, then create a new invoice list for that key, and then add
+                 *  the delinquent invoice to that list.
+                 */
                 if (!delinquentSubs.TryGetValue(key, out delinquentInvoices))
                 {
                     delinquentInvoices = new List<Invoice>();
@@ -54,6 +81,9 @@ public class CheckSubs
             }
         }
 
+        /*  Go through all items in the delinquentSubs dictionary and notify
+         *  the subscribers of delinquent invoices.
+         */
         foreach(var item in delinquentSubs)
         {
             subscribersAR[item.Key].notifyDelinquent(item.Value);
@@ -61,12 +91,18 @@ public class CheckSubs
 	}
 }
 
+/*  Payment object - not used in this scenario, but would be
+ *  used to get more information about payments
+ */
 public class Payment
 {
     public DateTime PaymentDate;
     public int PaymentAmount;
 }
 
+/*  Invoice class which takes the corresponding data from the 
+ *  database and turns it into a usable object
+ */ 
 public class Invoice
 {
     public DateTime invoiceDate;
@@ -101,6 +137,10 @@ public class Accounts_Receivable
     }
 }
 
+/*  Contact Information class that would be used when
+ *  sending subscribers notices. This object contains
+ *  the subscribers contact information.
+ */
 public class Contact_Information
 {
     public string contact;
@@ -173,6 +213,10 @@ public class Subscriber
         _loadAR();
     }
 
+    /*  Initializes the basic subscriber values that will always be passed.
+     *  Since there may be overloading in this class, instead of each function
+     *  setting these 3 variables this one function will handle that
+     */ 
     private void _initialize(string sub, int subID, int arID)
     {
         _sub = sub;
